@@ -66,10 +66,10 @@
       <div><label for="category">Category</label><input id="category" list="categories" required></div>
       <div><label for="name">Name</label><input id="name" required></div>
       <div><label for="company">Company</label><input id="company" list="companies"></div>
-      <div><label for="cartons">Qty in Cartons</label><input id="cartons" type="number" min="0" step="any" value="0"></div>
-      <div><label for="unitsPerCarton">Units/Carton</label><input id="unitsPerCarton" type="number" min="0" step="any" value="0"></div>
-      <div><label for="pieces">Pieces</label><input id="pieces" type="number" min="0" step="any" value="0"></div>
-      <div><label for="value">Value per Piece</label><input id="value" type="number" min="0" step="any" value="0"></div>
+      <div><label for="cartons">Qty in Cartons</label><input id="cartons" type="number" min="0" step="any" placeholder="0"></div>
+      <div><label for="unitsPerCarton">Units/Carton</label><input id="unitsPerCarton" type="number" min="0" step="any" placeholder="0"></div>
+      <div><label for="pieces">Pieces</label><input id="pieces" type="number" min="0" step="any" placeholder="0"></div>
+      <div><label for="value">Value per Piece</label><input id="value" type="number" min="0" step="any" placeholder="0"></div>
       <div class="actions">
         <button type="submit" id="saveBtn">Add Item</button>
         <button type="button" class="secondary" id="cancelBtn" hidden>Cancel</button>
@@ -89,6 +89,7 @@
       </label>
     </div>
     <p class="table-hint">Edit fields directly in the table. Changes save when you leave a field or press Enter; press Escape to cancel.</p>
+    <p class="table-hint">Empty numeric fields count as zero.</p>
     <p class="table-hint">Total Value = Total Pieces × Value per Piece.</p>
     <div class="table-wrap">
       <table>
@@ -123,6 +124,7 @@ function load() {
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
 const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+const displayNumber = n => n === 0 ? '' : String(n);
 const totalPieces = i => i.cartons * i.unitsPerCarton + i.pieces;
 const totalValue = i => totalPieces(i) * i.value;
 const fmt = n => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -169,8 +171,8 @@ function render() {
   const rows = filtered();
   const field = (i, key, label, numeric = false) => `<input class="inline-field${numeric ? ' num' : ''}"
     data-item="${esc(i.id)}" data-field="${key}" aria-label="${label} for ${esc(i.name)}"
-    type="${numeric ? 'number' : 'text'}" ${numeric ? 'min="0" step="any"' : ''}
-    value="${esc(i[key])}">`;
+    type="${numeric ? 'number' : 'text'}" ${numeric ? 'min="0" step="any" placeholder="0"' : ''}
+    value="${esc(numeric ? displayNumber(i[key]) : i[key])}">`;
   $('body').innerHTML = rows.length ? rows.map(i => `
     <tr class="${totalPieces(i) === 0 && i.value === 0 ? 'zero' : ''}">
       <td>${field(i, 'category', 'Category')}</td><td>${field(i, 'name', 'Name')}</td><td>${field(i, 'company', 'Company')}</td>
@@ -199,7 +201,6 @@ function update() { save(); refreshLists(); render(); }
 function resetForm() {
   $('form').reset();
   $('editId').value = '';
-  ['cartons', 'unitsPerCarton', 'pieces', 'value'].forEach(k => $(k).value = 0);
   $('saveBtn').textContent = 'Add Item';
   $('cancelBtn').hidden = true;
 }
@@ -231,15 +232,18 @@ $('body').addEventListener('change', e => {
   const column = COLUMNS.find(c => c.key === key);
   const text = input.value.trim();
   const value = column.num ? Number(text) : text.toUpperCase();
-  if ((column.num && (!text || !input.validity.valid || !Number.isFinite(value) || value < 0)) ||
+  if ((column.num && (!input.validity.valid || !Number.isFinite(value) || value < 0)) ||
       ((key === 'category' || key === 'name') && !text)) {
     alert(column.num ? `${column.label} must be a non-negative number.` : `${column.label} cannot be empty.`);
-    input.value = item[key];
+    input.value = column.num ? displayNumber(item[key]) : item[key];
     return;
   }
-  if ($('editId').value === item.id && $(key).value === String(item[key])) $(key).value = value;
+  if ($('editId').value === item.id &&
+      $(key).value === (column.num ? displayNumber(item[key]) : String(item[key]))) {
+    $(key).value = column.num ? displayNumber(value) : value;
+  }
   item[key] = value;
-  input.value = value;
+  input.value = column.num ? displayNumber(value) : value;
   save();
   clearTimeout(inlineRefresh);
   inlineRefresh = setTimeout(() => {
@@ -263,7 +267,7 @@ $('body').addEventListener('keydown', e => {
     input.blur();
   } else if (e.key === 'Escape') {
     const item = items.find(i => i.id === input.dataset.item);
-    if (item) input.value = item[input.dataset.field];
+    if (item) input.value = input.type === 'number' ? displayNumber(item[input.dataset.field]) : item[input.dataset.field];
     input.blur();
   }
 });
@@ -273,7 +277,8 @@ $('body').addEventListener('click', e => {
   if (ed) {
     const i = items.find(x => x.id === ed);
     $('editId').value = i.id;
-    ['category', 'name', 'company', 'cartons', 'unitsPerCarton', 'pieces', 'value'].forEach(k => $(k).value = i[k]);
+    ['category', 'name', 'company', 'cartons', 'unitsPerCarton', 'pieces', 'value'].forEach(k =>
+      $(k).value = $(k).type === 'number' ? displayNumber(i[k]) : i[k]);
     $('saveBtn').textContent = 'Update Item';
     $('cancelBtn').hidden = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
