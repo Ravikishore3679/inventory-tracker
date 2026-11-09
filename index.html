@@ -63,7 +63,11 @@
   <div class="card">
     <form id="form">
       <input type="hidden" id="editId">
-      <div><label for="category">Category</label><input id="category" list="categories" required></div>
+      <div>
+        <label for="category">Category</label>
+        <select id="category" required></select>
+        <input id="newCategory" placeholder="New category name" style="margin-top:6px" hidden>
+      </div>
       <div><label for="name">Name</label><input id="name" required></div>
       <div><label for="company">Company</label><input id="company" list="companies"></div>
       <div><label for="cartons">Qty in Cartons</label><input id="cartons" type="number" min="0" step="any" placeholder="0"></div>
@@ -75,7 +79,6 @@
         <button type="button" class="secondary" id="cancelBtn" hidden>Cancel</button>
       </div>
     </form>
-    <datalist id="categories"></datalist>
     <datalist id="companies"></datalist>
   </div>
 
@@ -159,9 +162,30 @@ function refreshLists() {
       list.map(v => `<option value="${esc(v)}">${first ? esc(v) + '</option>' : ''}`).join('');
     if (first) el.value = list.includes(cur) ? cur : '';
   };
-  fill($('categories'), cats); fill($('companies'), comps);
+  fill($('companies'), comps);
   fill($('filterCategory'), cats, 'All categories'); fill($('filterCompany'), comps, 'All companies');
+  fillCategorySelect(cats);
 }
+
+const NEW_CATEGORY = '__new__';
+function fillCategorySelect(cats, selected = $('category').value) {
+  const sel = $('category');
+  sel.innerHTML = '<option value="">Select category</option>' +
+    cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('') +
+    `<option value="${NEW_CATEGORY}">+ Add new category…</option>`;
+  sel.value = cats.includes(selected) || selected === NEW_CATEGORY ? selected : '';
+  toggleNewCategory();
+}
+function toggleNewCategory() {
+  const isNew = $('category').value === NEW_CATEGORY;
+  $('newCategory').hidden = !isNew;
+  $('newCategory').required = isNew;
+  if (!isNew) $('newCategory').value = '';
+}
+$('category').addEventListener('change', () => {
+  toggleNewCategory();
+  if ($('category').value === NEW_CATEGORY) $('newCategory').focus();
+});
 
 function render() {
   $('head').innerHTML = COLUMNS.map(c =>
@@ -200,6 +224,7 @@ function update() { save(); refreshLists(); render(); }
 
 function resetForm() {
   $('form').reset();
+  toggleNewCategory();
   $('editId').value = '';
   $('saveBtn').textContent = 'Add Item';
   $('cancelBtn').hidden = true;
@@ -208,7 +233,7 @@ function resetForm() {
 $('form').addEventListener('submit', e => {
   e.preventDefault();
   const data = {
-    category: $('category').value.trim().toUpperCase(),
+    category: ($('category').value === NEW_CATEGORY ? $('newCategory').value : $('category').value).trim().toUpperCase(),
     name: $('name').value.trim().toUpperCase(),
     company: $('company').value.trim().toUpperCase(),
     cartons: num($('cartons').value), unitsPerCarton: num($('unitsPerCarton').value),
@@ -277,8 +302,10 @@ $('body').addEventListener('click', e => {
   if (ed) {
     const i = items.find(x => x.id === ed);
     $('editId').value = i.id;
-    ['category', 'name', 'company', 'cartons', 'unitsPerCarton', 'pieces', 'value'].forEach(k =>
+    ['name', 'company', 'cartons', 'unitsPerCarton', 'pieces', 'value'].forEach(k =>
       $(k).value = $(k).type === 'number' ? displayNumber(i[k]) : i[k]);
+    $('category').value = i.category;
+    toggleNewCategory();
     $('saveBtn').textContent = 'Update Item';
     $('cancelBtn').hidden = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
