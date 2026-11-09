@@ -69,7 +69,7 @@
       <div><label for="cartons">Qty in Cartons</label><input id="cartons" type="number" min="0" step="any" value="0"></div>
       <div><label for="unitsPerCarton">Units/Carton</label><input id="unitsPerCarton" type="number" min="0" step="any" value="0"></div>
       <div><label for="pieces">Pieces</label><input id="pieces" type="number" min="0" step="any" value="0"></div>
-      <div><label for="value">Value</label><input id="value" type="number" min="0" step="any" value="0"></div>
+      <div><label for="value">Value per Piece</label><input id="value" type="number" min="0" step="any" value="0"></div>
       <div class="actions">
         <button type="submit" id="saveBtn">Add Item</button>
         <button type="button" class="secondary" id="cancelBtn" hidden>Cancel</button>
@@ -89,6 +89,7 @@
       </label>
     </div>
     <p class="table-hint">Edit fields directly in the table. Changes save when you leave a field or press Enter; press Escape to cancel.</p>
+    <p class="table-hint">Total Value = Total Pieces × Value per Piece.</p>
     <div class="table-wrap">
       <table>
         <thead><tr id="head"></tr></thead>
@@ -109,7 +110,8 @@ const COLUMNS = [
   { key:'unitsPerCarton', label:'Units/Carton', num:true },
   { key:'pieces', label:'Pieces', num:true },
   { key:'totalPieces', label:'Total Pieces', num:true },
-  { key:'value', label:'Value', num:true },
+  { key:'value', label:'Value per Piece', num:true },
+  { key:'totalValue', label:'Total Value', num:true },
 ];
 
 let items = load();
@@ -122,9 +124,10 @@ function load() {
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
 const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 const totalPieces = i => i.cartons * i.unitsPerCarton + i.pieces;
+const totalValue = i => totalPieces(i) * i.value;
 const fmt = n => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const getVal = (i, k) => k === 'totalPieces' ? totalPieces(i) : i[k];
+const getVal = (i, k) => k === 'totalPieces' ? totalPieces(i) : k === 'totalValue' ? totalValue(i) : i[k];
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -173,22 +176,22 @@ function render() {
       <td>${field(i, 'category', 'Category')}</td><td>${field(i, 'name', 'Name')}</td><td>${field(i, 'company', 'Company')}</td>
       <td>${field(i, 'cartons', 'Qty in Cartons', true)}</td><td>${field(i, 'unitsPerCarton', 'Units per carton', true)}</td>
       <td>${field(i, 'pieces', 'Pieces', true)}</td><td class="num">${fmt(totalPieces(i))}</td>
-      <td>${field(i, 'value', 'Value', true)}</td>
+      <td>${field(i, 'value', 'Value per Piece', true)}</td><td class="num">${fmt(totalValue(i))}</td>
       <td><div class="actions">
         <button class="small secondary" data-edit="${i.id}">Edit</button>
         <button class="small danger" data-del="${i.id}">Delete</button>
       </div></td>
-    </tr>`).join('') : `<tr><td colspan="9" class="empty">No items. Add one above or import a CSV.</td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="10" class="empty">No items. Add one above or import a CSV.</td></tr>`;
 
   const sum = k => rows.reduce((s, i) => s + getVal(i, k), 0);
   $('foot').innerHTML = `<tr><td colspan="3">Total (${rows.length} shown)</td>
     <td class="num">${fmt(sum('cartons'))}</td><td></td><td class="num">${fmt(sum('pieces'))}</td>
-    <td class="num">${fmt(sum('totalPieces'))}</td><td class="num">${fmt(sum('value'))}</td><td></td></tr>`;
+    <td class="num">${fmt(sum('totalPieces'))}</td><td></td><td class="num">${fmt(sum('totalValue'))}</td><td></td></tr>`;
 
   $('sItems').textContent = items.length;
   $('sCartons').textContent = fmt(items.reduce((s, i) => s + i.cartons, 0));
   $('sPieces').textContent = fmt(items.reduce((s, i) => s + totalPieces(i), 0));
-  $('sValue').textContent = fmt(items.reduce((s, i) => s + i.value, 0));
+  $('sValue').textContent = fmt(items.reduce((s, i) => s + totalValue(i), 0));
 }
 
 function update() { save(); refreshLists(); render(); }
@@ -343,8 +346,8 @@ $('fileInput').addEventListener('change', e => {
 
 $('exportBtn').addEventListener('click', () => {
   const q = s => `"${String(s).replace(/"/g, '""')}"`;
-  const lines = [['Category', 'Name', 'Company', 'Qty in Cartons', 'Units/Carton', 'Pieces', 'Value'].join(',')]
-    .concat(items.map(i => [q(i.category), q(i.name), q(i.company), i.cartons, i.unitsPerCarton, i.pieces, i.value].join(',')));
+  const lines = [['Category', 'Name', 'Company', 'Qty in Cartons', 'Units/Carton', 'Pieces', 'Value', 'Total Value'].join(',')]
+    .concat(items.map(i => [q(i.category), q(i.name), q(i.company), i.cartons, i.unitsPerCarton, i.pieces, i.value, totalValue(i)].join(',')));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type:'text/csv' }));
   a.download = 'inventory.csv';
